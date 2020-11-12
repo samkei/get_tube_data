@@ -57,8 +57,8 @@ class RequestData:
 
     @classmethod
     def format_input_time(cls, time):
-        pattern = "\d{4}-[0-1][0-2]-([0-2][0-9]|[3][0-1])"   ##"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"
-        match_nomatch = re.match(pattern, time) #"%Y%m%dT%H%M%S%fZ"
+        pattern = "\d{4}-[0-1][0-2]-([0-2][0-9]|[3][0-1])"
+        match_nomatch = re.match(pattern, time)
         if match_nomatch:
             parsed = dateutil.parser.parse(time)
             converted = str(parsed.date()) + "T" + str(parsed.time()) + "Z"
@@ -74,7 +74,6 @@ class RequestData:
         return str(parsed.date()) + "T" + str(new_time) + "Z"
 
 
-
 class VideoCategories(RequestData):
     def __init__(self, regionCode="us"):
         super().__init__("videoCategories", "snippet")
@@ -87,7 +86,7 @@ class VideoCategories(RequestData):
         json_reponse_items = json_reponse["items"]
         json_obj = json_reponse.keys()
         go_no_go = self.json_error_checker(json_obj)
-        if go_no_go == True:
+        if go_no_go is True:
             return json_reponse
         else:
             dic = {sub["id"]: sub["snippet"]["title"] for sub in json_reponse_items}
@@ -95,112 +94,147 @@ class VideoCategories(RequestData):
 
 
 class Search(RequestData):
-    #topic_id_dic = RequestData.json_loader("topicIds.json")
-    #ordered_dic = {sub[nii] for  }
-
-    def __init__(self, order, type=None, topicId=None, publishedBefore=None,publishedAfter=None, q=None, relevanceLanguage="en"):
+    def __init__(self, order, publishedAfter=None, publishedBefore=datetime.datetime.now(),days_before=30,q=None, type=None, topicId=None, relevanceLanguage="en"):
         super().__init__("search", "snippet")
+        if publishedAfter is None:
+            self.publishedAfter = str(self.get_date_n_days_before(days_before,publishedBefore)[1])
         self.order = order
-        self.topicId = topicId
-        self.type = type
         self.publishedBefore = publishedBefore
-        self.publishedAfter = publishedAfter
+        self.f_publishedBefore = RequestData.format_system_time(str(publishedBefore))
+        self.days_before = int(days_before)
+        self.f_publishedAfter = self.get_date_n_days_before(days_before,publishedBefore)[0]
         self.q = q
+        self.type = type
+        self.topicId = topicId
         self.relavanceLanguage = relevanceLanguage
-        self.default_search_by_topicId_url = RequestData.build_url(self.search_type, order=self.order,part=self.part,relevanceLanguage=self.relavanceLanguage,maxResults=self.maxResults, key=self.apiKey)
+        self.default_search_publish_return_time_title_url = RequestData.build_url(self.search_type, order=self.order, part=self.part,
+                                                                   publishedBefore=self.f_publishedBefore,
+                                                                   publishedAfter=self.f_publishedAfter,
+                                                                   relevanceLanguage=self.relavanceLanguage,
+                                                                   maxResults=self.maxResults, key=self.apiKey)
 
+        self.default_search_between_dates_return_videoIds_url = RequestData.build_url(self.search_type, order=self.order, part=self.part,
+                                                                   publishedBefore=self.f_publishedBefore,
+                                                                   publishedAfter=self.f_publishedAfter,
+                                                                   relevanceLanguage=self.relavanceLanguage,
+                                                                   maxResults=self.maxResults, key=self.apiKey)
 
-    def get_search_snippets(self):
-        json_reponse = RequestData.build_request(self.default_search_by_topicId_url)
+        self.default_search_between_dates_by_days_return_videoIds_url = RequestData.build_url(self.search_type, order=self.order,
+                                                                   part=self.part,
+                                                                   publishedBefore=self.f_publishedBefore,
+                                                                   publishedAfter=self.f_publishedAfter,
+                                                                   relevanceLanguage=self.relavanceLanguage,
+                                                                   maxResults=self.maxResults, key=self.apiKey)
+
+    def get_search_snippets_return_publish_time_title(self):
+        json_reponse = RequestData.build_request(self.default_search_publish_return_time_title_url)
         json_reponse_items = json_reponse["items"]
         json_obj = json_reponse.keys()
         go_no_go = self.json_error_checker(json_obj)
-        if go_no_go == True:
+        if go_no_go is True:
             return json_reponse
         else:
             dic = {sub['snippet']['publishedAt']:sub['snippet']["title"] for sub in json_reponse_items}
         return dic
 
 
-    def get_search_snippets_between_dates(self,published_before_date=datetime.datetime.now(),date_range=30):
-        date_range_int = int(date_range)
-        default_published_before_date = RequestData.format_system_time(published_before_date)
-        past_month = str(self.get_date_n_days_before(date_range_int))
-        vid_snippet_url = RequestData.build_url(self.search_type, part=self.part, publishedBefore=default_published_before_date,publishedAfter=past_month,maxResults=self.maxResults, key=self.apiKey)
-        json_reponse = RequestData.build_request(vid_snippet_url)
+    def get_search_snippets_between_dates_return_videoIds(self):
+        json_reponse = RequestData.build_request(self.default_search_between_dates_return_videoIds_url)
         json_obj = json_reponse.keys()
         go_no_go = self.json_error_checker(json_obj)
-        if go_no_go == True:
+        if go_no_go is True:
             return json_reponse
         else:
             json_reponse_items = json_reponse["items"]
-            json_list = {val['id']['videoId']:val['snippet'] for val in json_reponse_items}
+            json_list = [val['id']['videoId'] for val in json_reponse_items]
+        return json_list
 
-        return json_list #, dic1 #f"{invalid} because {json[:10]} in array: {json_reponse}"
+
+    def get_search_snippets_between_dates_by_days_return_videoIds(self):
+        json_reponse = RequestData.build_request(self.default_search_between_dates_by_days_return_videoIds_url)
+        json_obj = json_reponse.keys()
+        go_no_go = self.json_error_checker(json_obj)
+        if go_no_go is True:
+            return json_reponse
+        else:
+            json_reponse_items = json_reponse["items"]
+            json_list = [val['id']['videoId'] for val in json_reponse_items]
+        return json_list
 
 
     @classmethod
-    def get_date_n_days_before(cls, days,date=datetime.datetime.now()):
+    def get_date_n_days_before(cls, rdays=None,date=datetime.datetime.now()):
+        if rdays is None:
+            rdays = cls.days_before
+        days = int(rdays)
         delta1 = date
         delta2 = datetime.timedelta(days=+ days)
         diff = delta1 - delta2
-        return RequestData.format_system_time(diff)
+        return RequestData.format_system_time(diff), diff
 
 
-#part:contentDetails, fileDetails, id, liveStreamingDetails, localizations, player,
-# processingDetails, recordingDetails, snippet, statistics, status, suggestions, topicDetails;
-#chart: mostPopular; id; maxResults; pageToken; regionCode; chart
 class Videos(RequestData):
 
-    def __init__(self, chart=None, videoCategoryId=None, id=None):
+    def __init__(self, id=None, chart="mostPopular", videoCategoryId="28"):
         super().__init__("videos","statistics")
         self.chart = chart
         self.videoCategoryId = videoCategoryId
         self.id = id
-        self.default_video_statistics_by_topicId_url = RequestData.build_url(self.search_type, chart=self.chart,part=self.part,videoCategoryId=self.videoCategoryId,maxResults=self.maxResults, key=self.apiKey)
+        self.default_video_statistics_by_videocategoryId_url = RequestData.build_url(self.search_type, part=self.part,
+                                                                             chart=self.chart,
+                                                                             videoCategoryId=self.videoCategoryId,
+                                                                             maxResults=self.maxResults,
+                                                                             key=self.apiKey)
+        self.default_video_snippets_by_id_url = RequestData.build_url(self.search_type, part="snippet",
+                                                                             id=self.id,
+                                                                             maxResults=self.maxResults,
+                                                                             key=self.apiKey)
 
-
-    def get_video_statistics(self, url=self.default_video_statistics_by_topicId_url):
-        json_reponse = RequestData.build_request(url)
+    def get_video_statistics_by_videocategoryId(self):
+        json_reponse = RequestData.build_request(self.default_video_statistics_by_videocategoryId_url)
         json_reponse_items = json_reponse["items"]
         json_obj = json_reponse.keys()
         go_no_go = self.json_error_checker(json_obj)
-        if go_no_go == True:
+        if go_no_go is True:
             return json_reponse
         else:
             for item in json_reponse_items:
-                dic = {sub['id']: sub['statistics']["viewCount"] for sub in json_reponse_items}
+                dic = {sub['id']: sub['statistics']['likeCount'] for sub in json_reponse_items}
         return dic
 
 
-    def get_video_snippets_title(self):
-        vid_snippet_url = RequestData.build_url(self.search_type, part="snippet", id=self.id,maxResults=self.maxResults, key=self.apiKey)
-        json_reponse = RequestData.build_request(vid_snippet_url)
+    def get_video_snippets_by_id(self):
+        json_reponse = RequestData.build_request(self.default_video_snippets_by_id_url)
         json_reponse_items = json_reponse["items"]
         json_obj = json_reponse.keys()
         go_no_go = self.json_error_checker(json_obj)
-        if go_no_go == True:
+        if go_no_go is True:
             return json_reponse
         else:
-            json_reponse_categoryIds = {key["categoryId"]:key["tags"] for key in json_reponse_items}
-        return json_reponse_categoryIds
+            json_reponse_id_snippet = {key["id"]:key["snippet"] for key in json_reponse_items}
+        return json_reponse_id_snippet
 
 
 def handler(event, context):
-        print(f'This application will retrieve the top 50 viewed youtube videos for a specified "date range," but which defaults to 30 days from the current system time. From the returned Ids a secondary query is triggerred returning alll the categories these top-viewed videos belong to.\nThis information when fully realized as the dataset is expanded can indicate important national trends or changes if any for specified periods of times."')
+        print(f'Retrieving the top 50 viewed youtube videos for the specified "date range." Default already set to 30 days from the current system time. From the returned Ids performing secondary query to retrieve data such as categoryId and tags relating to them.\nThis information can provide dataset for important national trends or changes in a specified period of time."')
 
-        new_vid_search = Search("viewCount")  # "ViewCount", category_Id, None, None, datetime.datetime.now())
+        #For this search instance only parameter needed is "viewCount."  Default values already set in parent and child class of the instance.
+        new_vid_search = Search("viewCount")
 
-        time = RequestData.format_system_time(datetime.datetime.date())
-        print(f"Current system time is: {time}. Retrieving items from search resource: ")
-        vid_search_response = vid_search.get_search_snippets_between_dates()
-        print(vid_search_response)
+        time = RequestData.format_system_time(datetime.datetime.now())
+        print(f'Current system date/time is: {time}. Retrieving items from the "search" resource between {Search.get_date_n_days_before(30,datetime.datetime.now())[0]} and the current date/time of {time}: ')
 
-        print(f"These are the top 50 items returned showing their title and descriptions. Another query is needed to retrieve their categoryId and further informatino such as associated tags.")
-        vid_ids = vid_search_response.keys()
+        #Instance method get_search_snippets_between_dates() can take a "published_before_date" and a "date_range" parameters. Default: "current system time" and 30 days.
+        new_vid_search_response = new_vid_search.get_search_snippets_between_dates_return_videoIds()
+        print(new_vid_search_response)
 
+        print(f"These are the top 50 items returned showing their title and descriptions. Another query is needed to retrieve their categoryId and further information such as associated tags.")
+
+        vid_ids = ",".join(new_vid_search_response)
         new_vid_snippet = Videos(id=vid_ids)
-        vid_snippet_response = new_vid_snippet.get_video_snippets_title()
+        vid_snippet_response = new_vid_snippet.get_video_statistics_by_videocategoryId()
+        vid_snippet_response = new_vid_snippet.get_video_snippets_by_id()
+        vid_snippet_response = RequestData.build_url("videos", part="snippet", id=vid_ids,maxResults=new_vid_snippet.maxResults, key=RequestData.apiKey)
         print(vid_snippet_response)
 
         '''
@@ -223,4 +257,4 @@ def handler(event, context):
         print(vid_search_response)
         '''
 
-        #handler(None,None)
+#handler(None,None)
