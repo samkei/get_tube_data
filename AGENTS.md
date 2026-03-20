@@ -18,3 +18,5 @@ Dependencies are declared in `Pipfile` (requests, boto3, datetime). The `Pipfile
 - The script auto-executes `handler(None, None)` at the module level (line 267), so importing the module will trigger API calls.
 - There are `SyntaxWarning`s on Python 3.12 for unescaped `\d` in regex strings (lines 60, 247) — these are harmless warnings in the existing code.
 - The `get-tube-data-aws/` directory contains vendored boto3/botocore for Lambda deployment packaging; it is not used for local development.
+- The YouTube Search endpoint (`order=viewCount`) may return empty results even with a valid API key due to quota or access restrictions. The Videos endpoint (`chart=mostPopular`) works reliably for fetching popular video statistics and snippets.
+- The `Videos` class constructor always builds both a statistics URL and a snippets URL; when `id=None` (default), the snippets URL construction will fail because `build_url` concatenates `None` to a string.
